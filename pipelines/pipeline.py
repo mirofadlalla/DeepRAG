@@ -5,27 +5,38 @@ from steps.chunking_engine import chunk_documents
 from steps.faiss_index import faiss_index_step
 from steps.retrievalfiltering import retrieval_step
 from steps.Cross_Encoder import CrossEncoderStep
-from steps.prompt_engineering import qwen_llm_generation_step
+from steps.prompt_engineering import llama_llm_generation_step
+from pathlib import Path
 
 
 import pickle
 from zenml import step
+import numpy as np
+from typing import List, Dict, Optional
+
+@step
+def build_metadata_store(embedeed_chunks: List[Dict]) -> Dict[str, Dict]:
+    """Build metadata store from embedded chunks."""
+    return {
+        chunk["chunk_id"]: {
+            **chunk["metadata"],
+            "text": chunk.get("text", "")
+        }
+        for chunk in embedeed_chunks
+    }
 
 @pipeline
-def rag_pipline( query : None ,
-                 query_vector: None ,
-                 filters: None ,
-                 doc_path: str = "E:\pyDS\Buliding Rag System\data"):
+def rag_pipline(query: str,
+                query_vector: List[float],
+                filters: Optional[Dict] = None,
+                doc_path: str = r"E:\\pyDS\\Buliding Rag System\\data"):
 
-    docs = load(doc_path)
+    docs = load(Path(doc_path))
     chunks = chunk_documents(docs)
     embedeed_chunks = chunks_embedding(chunks)
     fi =  faiss_index_step(embedeed_chunks, vector_dim=1024) # will retrun FaissIndex instance
 
-    chunk_metadata_store = {
-    chunk["chunk_id"]: chunk["metadata"]
-    for chunk in embedeed_chunks
-    }
+    chunk_metadata_store = build_metadata_store(embedeed_chunks)
 
     results = retrieval_step(
         faiss_index=fi,
@@ -42,7 +53,7 @@ def rag_pipline( query : None ,
         top_k=5
     )
 
-    final_answer = qwen_llm_generation_step(
+    final_answer = llama_llm_generation_step(
         question=query,  # to be provided during pipeline run
         chunks=reranked_results
     )
