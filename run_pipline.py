@@ -3,11 +3,11 @@ import pickle
 from sentence_transformers import SentenceTransformer
 
 if __name__ == "__main__":
-    model = SentenceTransformer("BAAI/bge-m3", device="cuda")
-    questions = "What was the direct financial impact of this change on the Income Statement for the year ended December 31, 2023? Be specific about the amounts for depreciation expense and net income."
+    model = SentenceTransformer("BAAI/bge-m3", device="cpu")
+    questions = "What was the outcome, as of the document's date, of the Epic Games v. Google trial in California in December 2023?"
 
-    doc_path = "E:\pyDS\Buliding Rag System\data"
+    doc_path = r"E:\pyDS\Buliding Rag System\data"
     query_vec = model.encode(questions, normalize_embeddings=True)
-    ans = rag_pipline(query=questions, query_vector=query_vec, filters=None, doc_path=doc_path)
-
-    print(ans)
+    # Convert numpy array to list for Pydantic serialization
+    query_vec_list = query_vec.tolist() if isinstance(query_vec, __import__('numpy').ndarray) else query_vec
+    run = rag_pipline(query=questions, query_vector=query_vec_list, filters=None, doc_path=doc_path)
