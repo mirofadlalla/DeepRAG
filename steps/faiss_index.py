@@ -36,9 +36,17 @@ class FaissIndex:
         '''
         for emb in embeddings :
             vector = emb['vector']
+            # Convert to numpy array if it's a list
+            if isinstance(vector, list):
+                vector = np.array(vector, dtype=np.float32)
+            else:
+                vector = np.array(vector, dtype=np.float32)
+            # Ensure vector is 2D (1, dim)
+            if vector.ndim == 1:
+                vector = vector.reshape(1, -1)
             self.index.add(vector)
 
-            self.mapping[self.faiss_id] = emb['chunk_id']
+            self.mapping[str(self.faiss_id)] = emb['chunk_id']
             self.faiss_id +=1
 
     def search(self , query_vector: np.ndarray, top_k: int = 50) -> List[int]:
@@ -47,9 +55,13 @@ class FaissIndex:
         Returns a list of chunk_ids corresponding to the nearest neighbors.
         '''
 
-        query_vector = query_vector.reshape(1, -1)
-        d , I = self.index.search(query_vector , top_k )
-        return [self.mapping[i] for i in I[0]] # return chunk_ids
+        query_vector = np.array(query_vector, dtype=np.float32)
+        if query_vector.ndim == 1:
+            query_vector = query_vector.reshape(1, -1)
+        d, I = self.index.search(query_vector, top_k)
+        # FAISS returns -1 for missing results; filter those out
+        ids = [int(i) for i in I[0] if int(i) != -1]
+        return [self.mapping[str(i)] for i in ids]  # return chunk_ids
     
     def save(self): 
         '''
@@ -69,7 +81,9 @@ class FaissIndex:
         if os.path.exists(self.mapping_path):
             with open(self.mapping_path, "r", encoding="utf-8") as f:
                 self.mapping = json.load(f)
-            self.next_id = max(map(int, self.mapping.keys())) + 1
+            # Update faiss_id to continue from where we left off
+            if self.mapping:
+                self.faiss_id = max(map(int, self.mapping.keys())) + 1
 
 
 @step()

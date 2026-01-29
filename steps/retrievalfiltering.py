@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Optional
 import numpy as np
 from zenml import step
 
@@ -15,7 +15,7 @@ class Retriever:
     def query_retreviel(self,
                         query_vector: np.ndarray,
                         top_k: int = 50,
-                        filters: Dict = None
+                        filters: Optional[Dict] = None
                     ) -> List[Dict]:
       canditae_ids = self.faiss_index.search(query_vector , top_k * 2)
 
@@ -27,29 +27,31 @@ class Retriever:
         if not meta :
           continue
 
-        if "language" in filters and filters['language'] != meta['language'] :
+        if filters and "language" in filters and filters['language'] != meta['language'] :
           continue
 
         results.append({
                 "chunk_id": cid,
-                # "text": meta.get("text" , ""),
+                "text": meta.get("text" , ""),
                 "metadata": meta
             })
 
       return results[:top_k]
 
-@step()
+@step(enable_cache=False)
 def retrieval_step(
     faiss_index,
     chunks_metadata: Dict[str, Dict],
-    query_vector: np.ndarray,
+    query_vector: List[float],
     top_k: int = 50,
-    filters: Dict = None
+    filters: Optional[Dict] = None
 ) -> List[Dict]:
     retriever = Retriever(faiss_index, chunks_metadata)
+    # Convert list back to numpy array
+    query_vector_np = np.array(query_vector, dtype=np.float32)
     results = retriever.query_retreviel(
-        query_vector,
-        top_k,
-        filters
+      query_vector_np,
+      top_k,
+      filters
     )
     return results

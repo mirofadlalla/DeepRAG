@@ -82,15 +82,29 @@ class EmbeddingCache:
 
 
 class Embedder:
-    def __init__(self, model_name="BAAI/bge-m3", device="cuda", batch_size=32):
+    def __init__(self, model_name="BAAI/bge-m3", device="cuda", batch_size=8):
         '''
         model_name: name of the sentence transformer model
         device: "cuda" or "cpu"
         batch_size: number of texts to encode in a single batch
         '''
-        self.model = SentenceTransformer(model_name, device=device)
         self.batch_size = batch_size
         self.cache = EmbeddingCache()
+
+        # Try loading the requested model; if it fails (commonly due to memory),
+        # fall back to a lightweight model with a clear log message.
+        try:
+            logging.info(f"Loading SentenceTransformer: {model_name} (device={device})")
+            self.model = SentenceTransformer(model_name, device=device)
+        except Exception as e:
+            logging.error(f"Failed to load model '{model_name}': {e}")
+            fallback = "sentence-transformers/all-MiniLM-L6-v2"
+            logging.info(f"Falling back to smaller model '{fallback}' (device=cpu). This reduces memory requirements.")
+            try:
+                self.model = SentenceTransformer(fallback, device="cpu")
+            except Exception as e2:
+                logging.error(f"Failed to load fallback model '{fallback}': {e2}")
+                raise
 
     def _hash(self, text: str) -> str:
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
@@ -109,10 +123,12 @@ class Embedder:
             text_hash = self._hash(text)
             if self.cache.exists(text_hash):
                 vector = self.cache.load(text_hash)
+                # Ensure vector is numpy array
+                vector_array = np.array(vector, dtype=np.float32)
                 embedded.append({
                     "chunk_id": chunk["id"],
-                    # "text" : chunk["text"],
-                    "vector": vector,
+                    "text": chunk["text"],
+                    "vector": vector_array,
                     "metadata": chunk["metadata"]
                 })
             else:
@@ -126,16 +142,23 @@ class Embedder:
             for idx, vector in zip(chunk_indices, vectors):
                 chunk = chunks[idx]
                 text_hash = self._hash(chunk["text"])
-                self.cache.save(text_hash, vector)
+                # Ensure vector is numpy array
+                vector_array = np.array(vector, dtype=np.float32)
+                self.cache.save(text_hash, vector_array)
                 embedded[idx] = {
                     "chunk_id": chunk["id"],
-                    # "text" : chunk["text"],
-                    "vector": vector,
+                    "text": chunk["text"],
+                    "vector": vector_array,
                     "metadata": chunk["metadata"]
                 }
 
         logging.info("All chunks embedded ✅")
-
+        
+        # Convert numpy arrays to lists for ZenML serialization
+        for chunk in embedded:
+            if isinstance(chunk.get("vector"), np.ndarray):
+                chunk["vector"] = chunk["vector"].tolist()
+        
         return embedded
         # output_path = r"E:\pyDS\Buliding Rag System\embedded_chunks.pkl"
 

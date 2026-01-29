@@ -1,49 +1,48 @@
-from transformers import AutoTokenizer, AutoModelForCausalLM
-from transformers import BitsAndBytesConfig
-import torch
-
+            # api_key="",
+import os
+import logging
+from huggingface_hub import InferenceClient
 from zenml import step
 
-class QwenLLMGenerator4bit:
-    def __init__(self, model_name="Qwen/Qwen2.5-1.5B-Instruct"):
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        # 4-bit quantization configuration
-        bnb_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_use_double_quant=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch.float16
+class LlamaInstructLLMGenerator:
+    def __init__(self, model_name="meta-llama/Llama-3.1-8B-Instruct"):
+        self.client = InferenceClient(
+            api_key=os.environ.get("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"),
         )
+        self.model_name = model_name
 
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            quantization_config=bnb_config,
-            device_map="auto",
-            trust_remote_code=True
-        ).to(self.device)
-
+        # تعليمات النظام
         self.system_prompt = """
+أنت مساعد ذكي.
 مهمتك هي الإجابة على السؤال باستخدام النص المعطى فقط.
- قواعد إلزامية:
+
+قواعد إلزامية:
 - استخدم فقط المعلومات الموجودة في السياق.
-- ممنوع التخمين أو الاستنتاج.
-- لو الإجابة غير موجودة بوضوح، قل حرفيًا: "لا أعلم".
-- أجب باللغة العربية وبإجابة مباشرة.
+- لا تضف أي معلومة غير مذكورة صراحة.
+- مسموح بإعادة صياغة المعلومة طالما المعنى موجود حرفيًا في السياق.
+- لو الإجابة غير موجودة بوضوح، قل حرفيًا: لا أعلم
+- أجب باللغة العربية وبإجابة مباشرة مختصرة.
 """
 
     def build_prompt(self, question: str, chunks: list):
+        """
+        يبني نص البرومبت من الـ chunks والسؤال
+        """
         context_blocks = []
         sources = []
 
         for i, c in enumerate(chunks, start=1):
-            source = f"{c['metadata']['source']}:page{c['metadata'].get('page', '')}"
+            if isinstance(c.get("metadata"), dict):
+                source = f"{c['metadata'].get('source', 'unknown')}:page{c['metadata'].get('page', '')}"
+            else:
+                source = f"{c.get('metadata', 'unknown')}:page"
             sources.append(source)
-            context_blocks.append(f"[{i}] المصدر: {source}\n{c['text']}")
+
+            context_blocks.append(f"[{i}] {c['text']}")
 
         context = "\n\n".join(context_blocks)
+
         prompt = f"""
 السياق:
 {context}
@@ -51,33 +50,57 @@ class QwenLLMGenerator4bit:
 السؤال:
 {question}
 
-الإجابة:
+أجب الآن:
 """
         return prompt, sources
 
     def generate(self, prompt: str):
-        full_prompt = f"### System:\n{self.system_prompt}\n\n### User:\n{prompt}\n\n### Assistant:\n"
-        inputs = self.tokenizer(full_prompt, return_tensors="pt").to(self.device)
+        """
+        يولّد الإجابة باستخدام Llama 3.1 Instruct
+        """
+        logging.info("Generating answer from LLM...")
 
-        with torch.no_grad():
-            outputs = self.model.generate(
-                **inputs,
-                max_new_tokens=128,
+        messages = [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": prompt}
+        ]
+
+        try:
+            completion = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=messages,
+                max_tokens=150,
                 temperature=0.1,
                 top_p=0.9,
-                do_sample=False
             )
 
-        decoded = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-        return decoded.split("### Assistant:")[-1].strip()
+            answer = completion.choices[0].message.get("content", "").strip()
+            if not answer:
+                return "لا أعلم"
+            return answer
+
+        except Exception as e:
+            logging.error(f"LLM Error: {e}")
+            return "لا أعلم"
 
 
-@step()
-def qwen_llm_generation_step(
+@step(enable_cache=False)
+def llama_llm_generation_step(
     question: str,
     chunks: list
-) -> str:
-    generator = QwenLLMGenerator4bit()
+) -> dict:
+    generator = LlamaInstructLLMGenerator()
+
     prompt, sources = generator.build_prompt(question, chunks)
     answer = generator.generate(prompt)
-    return {"answer" : answer, "sources": sources}
+
+    chunk_ids = [
+        c.get("chunk_id") if isinstance(c, dict) else None
+        for c in chunks
+    ]
+
+    return {
+        "answer": answer,
+        "sources": sources,
+        "chunk_ids": chunk_ids
+    }
