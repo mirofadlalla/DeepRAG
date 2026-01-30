@@ -13,7 +13,7 @@ import numpy as np
 import os
 import json
 from typing import List, Dict
-
+import mlflow
 from zenml import step
 
 class FaissIndex:
@@ -24,9 +24,12 @@ class FaissIndex:
         self.index_path = index_path
         self.mapping_path = mapping_path
 
+
+
         self.index = faiss.IndexFlatIP(vector_dim)
         self.mapping = {}  # faiss_id -> chunk_id
         self.faiss_id = 0
+        mlflow.log_param("faiss_vector_dim", vector_dim)
 
     def add(self , embeddings: List[Dict]):
         '''
@@ -49,10 +52,10 @@ class FaissIndex:
             self.mapping[str(self.faiss_id)] = emb['chunk_id']
             self.faiss_id +=1
 
-    def search(self , query_vector: np.ndarray, top_k: int = 50) -> List[int]:
+    def search(self , query_vector: np.ndarray, top_k: int = 50) -> List[tuple]:
         '''
         Searches the FAISS index for the top_k nearest neighbors of the query_vector.
-        Returns a list of chunk_ids corresponding to the nearest neighbors.
+        Returns a list of tuples (chunk_id, score) for the nearest neighbors.
         '''
 
         query_vector = np.array(query_vector, dtype=np.float32)
@@ -60,8 +63,14 @@ class FaissIndex:
             query_vector = query_vector.reshape(1, -1)
         d, I = self.index.search(query_vector, top_k)
         # FAISS returns -1 for missing results; filter those out
-        ids = [int(i) for i in I[0] if int(i) != -1]
-        return [self.mapping[str(i)] for i in ids]  # return chunk_ids
+        results = []
+        for i, idx in enumerate(I[0]):
+            idx = int(idx)
+            if idx != -1:
+                chunk_id = self.mapping[str(idx)]
+                score = float(d[0][i])
+                results.append((chunk_id, score))
+        return results  # return list of (chunk_id, score) tuples
     
     def save(self): 
         '''
@@ -86,9 +95,10 @@ class FaissIndex:
                 self.faiss_id = max(map(int, self.mapping.keys())) + 1
 
 
-@step()
+@step(enable_cache=True)
 def faiss_index_step(embeddings: List[Dict], vector_dim: int):
     faiss_index = FaissIndex(vector_dim)
     faiss_index.add(embeddings)
     faiss_index.save()
+    mlflow.log_param("faiss_index_size", faiss_index.index.ntotal)
     return faiss_index

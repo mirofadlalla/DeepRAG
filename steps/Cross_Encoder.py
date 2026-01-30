@@ -70,9 +70,13 @@ from zenml import step
 import os
 from zenml import step
 from typing import List, Dict
-# from typing import List, Dict
 from huggingface_hub import InferenceClient
+import logging
+import mlflow
+import time
+from dotenv import load_dotenv
 
+load_dotenv(dotenv_path="E:\pyDS\Buliding Rag System\.env")
 
 class CrossEncoderReRankerHF:
     def __init__(
@@ -82,11 +86,13 @@ class CrossEncoderReRankerHF:
     ):
         self.client = InferenceClient(
             provider="hf-inference",
-            api_key="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",
-            # api_key=os.environ["HF_TOKEN"],
+            api_key=os.getenv("HUGGINGFACE_API_KEY"),
         )
         self.model_name = model_name
         self.top_k = top_k
+
+        mlflow.log_param("cross_encoder_model", model_name)
+        mlflow.log_param("cross_encoder_top_k", top_k)
 
     def _score_pair(self, query: str, chunk_text: str) -> float:
         """
@@ -98,6 +104,7 @@ class CrossEncoderReRankerHF:
         )
 
         # HF بيرجع list
+        mlflow.log_metric("cross_encoder_inference_score", float(response[0]["score"]))
         return float(response[0]["score"])
 
     def rerank(
@@ -107,26 +114,35 @@ class CrossEncoderReRankerHF:
         chunks: List[Dict],
     ) -> List[Dict]:
 
-        # Map chunk_id → text
-        chunk_id_to_text = {c["id"]: c["text"] for c in chunks}
+        # Map chunk_id → text (support legacy 'id' key)
+        chunk_id_to_text = {
+            (c.get("chunk_id") or c.get("id")): c.get("text", "")
+            for c in chunks
+            if (c.get("chunk_id") or c.get("id"))
+        }
 
         reranked = []
 
-        for result in results_from_faiss:
-            chunk_id = result["chunk_id"]
+        try:
+            for result in results_from_faiss:
+                chunk_id = result["chunk_id"]
 
-            if chunk_id not in chunk_id_to_text:
-                continue
+                if chunk_id not in chunk_id_to_text:
+                    continue
 
-            score = self._score_pair(
-                query=query,
-                chunk_text=chunk_id_to_text[chunk_id],
-            )
+                score = self._score_pair(
+                    query=query,
+                    chunk_text=chunk_id_to_text[chunk_id],
+                )
 
-            reranked.append({
-                **result,
-                "score": score,
-            })
+                reranked.append({
+                    **result,
+                    "score": score,
+                })
+        except Exception as e:
+            logging.warning("Cross-encoder failed (%s). Returning input results unchanged.", e)
+            # Fall back to returning original results (up to top_k) if scoring fails
+            return results_from_faiss[: self.top_k]
 
         # Sort by relevance score
         reranked.sort(key=lambda x: x["score"], reverse=True)
@@ -143,11 +159,11 @@ def CrossEncoderStep(
 ) -> List[Dict]:
 
     reranker = CrossEncoderReRankerHF(top_k=top_k)
-
     reranked_results = reranker.rerank(
         query=query,
         results_from_faiss=results_from_faiss,
         chunks=chunks,
     )
+    mlflow.log_param("cross_encoder_top_k", top_k)
 
     return reranked_results

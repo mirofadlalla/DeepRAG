@@ -1,14 +1,17 @@
-            # api_key="",
 import os
 import logging
 from huggingface_hub import InferenceClient
 from zenml import step
+from dotenv import load_dotenv
+import mlflow
+import time
 
+load_dotenv(dotenv_path="E:\pyDS\Buliding Rag System\.env")
 
 class LlamaInstructLLMGenerator:
     def __init__(self, model_name="meta-llama/Llama-3.1-8B-Instruct"):
         self.client = InferenceClient(
-            api_key=os.environ.get("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"),
+            api_key=os.getenv("HUGGINGFACE_API_KEY"),
         )
         self.model_name = model_name
 
@@ -21,6 +24,7 @@ class LlamaInstructLLMGenerator:
 - استخدم فقط المعلومات الموجودة في السياق.
 - لا تضف أي معلومة غير مذكورة صراحة.
 - مسموح بإعادة صياغة المعلومة طالما المعنى موجود حرفيًا في السياق.
+- : "إذا كان الجواب موجود في أكثر من chunk، اختر الأنسب."
 - لو الإجابة غير موجودة بوضوح، قل حرفيًا: لا أعلم
 - أجب باللغة العربية وبإجابة مباشرة مختصرة.
 """
@@ -59,12 +63,16 @@ class LlamaInstructLLMGenerator:
         يولّد الإجابة باستخدام Llama 3.1 Instruct
         """
         logging.info("Generating answer from LLM...")
+        logging.info(f"Prompt: {prompt}")
 
         messages = [
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": prompt}
         ]
 
+        mlflow.log_param("llama_model", self.model_name)
+
+        llm_start_time = time.time()
         try:
             completion = self.client.chat.completions.create(
                 model=self.model_name,
@@ -73,15 +81,22 @@ class LlamaInstructLLMGenerator:
                 temperature=0.1,
                 top_p=0.9,
             )
+            llm_end_time = time.time()
 
             answer = completion.choices[0].message.get("content", "").strip()
+            logging.info(f"LLM Answer: {answer}")
             if not answer:
-                return "لا أعلم"
+                return "Empty answer from LLM."
+            
+            # Log metrics
+            llm_latency_ms = (llm_end_time - llm_start_time) * 1000
+            mlflow.log_metric("llama_response_length", len(answer))
+            mlflow.log_metric("llm_latency_ms", llm_latency_ms)
             return answer
 
         except Exception as e:
             logging.error(f"LLM Error: {e}")
-            return "لا أعلم"
+            return "Error generating LLM response."
 
 
 @step(enable_cache=False)
@@ -102,5 +117,5 @@ def llama_llm_generation_step(
     return {
         "answer": answer,
         "sources": sources,
-        "chunk_ids": chunk_ids
+        "chunk_ids": chunk_ids,
     }

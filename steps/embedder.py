@@ -46,6 +46,7 @@ import logging
 import pickle
 from zenml import step
 import numpy as np
+import mlflow
 from sentence_transformers import SentenceTransformer
 
 # إعداد logging
@@ -82,13 +83,15 @@ class EmbeddingCache:
 
 
 class Embedder:
-    def __init__(self, model_name="BAAI/bge-m3", device="cuda", batch_size=8):
+    def __init__(self, model_name="BAAI/bge-m3", device="cuda", batch_size=7):
         '''
         model_name: name of the sentence transformer model
         device: "cuda" or "cpu"
         batch_size: number of texts to encode in a single batch
         '''
         self.batch_size = batch_size
+        mlflow.log_param("embedding_model", model_name)
+        mlflow.log_param("embedding_device", device)
         self.cache = EmbeddingCache()
 
         # Try loading the requested model; if it fails (commonly due to memory),
@@ -126,7 +129,7 @@ class Embedder:
                 # Ensure vector is numpy array
                 vector_array = np.array(vector, dtype=np.float32)
                 embedded.append({
-                    "chunk_id": chunk["id"],
+                    "chunk_id": chunk["chunk_id"],
                     "text": chunk["text"],
                     "vector": vector_array,
                     "metadata": chunk["metadata"]
@@ -146,7 +149,7 @@ class Embedder:
                 vector_array = np.array(vector, dtype=np.float32)
                 self.cache.save(text_hash, vector_array)
                 embedded[idx] = {
-                    "chunk_id": chunk["id"],
+                    "chunk_id": chunk["chunk_id"],
                     "text": chunk["text"],
                     "vector": vector_array,
                     "metadata": chunk["metadata"]
@@ -160,16 +163,9 @@ class Embedder:
                 chunk["vector"] = chunk["vector"].tolist()
         
         return embedded
-        # output_path = r"E:\pyDS\Buliding Rag System\embedded_chunks.pkl"
-
-        # print("Saving embedded chunks...")
-        # with open(output_path, "wb") as f:
-        #     pickle.dump(embedded, f)
-
-        # print("Saved successfully at:", output_path)
 
 
-@step(enable_cache=True)
+@step(enable_cache=False)
 def chunks_embedding(chunks) :
     em = Embedder()
     return em.chunk_embeded(chunks)

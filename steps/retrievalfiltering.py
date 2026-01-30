@@ -1,6 +1,8 @@
 from typing import List, Dict, Optional
 import numpy as np
 from zenml import step
+import mlflow
+import time
 
 
 class Retriever:
@@ -17,11 +19,11 @@ class Retriever:
                         top_k: int = 50,
                         filters: Optional[Dict] = None
                     ) -> List[Dict]:
-      canditae_ids = self.faiss_index.search(query_vector , top_k * 2)
+      candidate_results = self.faiss_index.search(query_vector , top_k * 2)
 
       results = []
 
-      for cid in canditae_ids :
+      for cid, score in candidate_results:
         meta = self.chunks_metadata.get(cid)
 
         if not meta :
@@ -33,7 +35,13 @@ class Retriever:
         results.append({
                 "chunk_id": cid,
                 "text": meta.get("text" , ""),
-                "metadata": meta
+                "metadata":{
+                    "source": meta.get("source" , ""),
+                    "page": meta.get("page" , -1),
+                    "language": meta.get("language" , ""),
+                    "doc_type": meta.get("doc_type" , "")
+                },
+                "score": score
             })
 
       return results[:top_k]
@@ -49,9 +57,17 @@ def retrieval_step(
     retriever = Retriever(faiss_index, chunks_metadata)
     # Convert list back to numpy array
     query_vector_np = np.array(query_vector, dtype=np.float32)
+    
+    retrieval_start = time.time()
     results = retriever.query_retreviel(
       query_vector_np,
       top_k,
       filters
     )
+    retrieval_end = time.time()
+    
+    retrieval_latency_ms = (retrieval_end - retrieval_start) * 1000
+    mlflow.log_metric("retrieval_execution_latency_ms", retrieval_latency_ms)
+    mlflow.log_param("retrieval_top_k", top_k)
+    
     return results
