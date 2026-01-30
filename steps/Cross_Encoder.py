@@ -1,8 +1,8 @@
-# # الهدف
+# # The objective
 
-# # ناخد Top-50 chunks من Retriever
-# # نعيد ترتيبهم باستخدام Cross-Encoder
-# # نطلع Top-5 فقط بأعلى دقة ممكنة
+# # Get Top-50 chunks from Retriever
+# # Rerank using Cross-Encoder
+# # Return only Top-5 with highest accuracy possible
 # import numpy as np
 # from typing import List, Dict
 
@@ -81,7 +81,7 @@ load_dotenv(dotenv_path="E:\pyDS\Buliding Rag System\.env")
 class CrossEncoderReRankerHF:
     def __init__(
         self,
-        model_name: str = "BAAI/bge-reranker-base",
+        model_name: str = "BAAI/bge-reranker-large",
         top_k: int = 5,
     ):
         self.client = InferenceClient(
@@ -103,7 +103,7 @@ class CrossEncoderReRankerHF:
             model=self.model_name,
         )
 
-        # HF بيرجع list
+        # HF returns list
         mlflow.log_metric("cross_encoder_inference_score", float(response[0]["score"]))
         return float(response[0]["score"])
 

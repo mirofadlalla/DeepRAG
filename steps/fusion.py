@@ -2,7 +2,7 @@ from collections import defaultdict
 from zenml import step
 import mlflow
 class RRFFusion:
-    def __init__(self, k=60):
+    def __init__(self, k=30):
         self.k = k
 
     def fuse(self, dense_results, sparse_results, top_k=10):

@@ -40,7 +40,7 @@ embedding لازم يعتمد على النص فقط
 '''
 import os
 import hashlib
-from typing import List, Dict
+from typing import Dict, List, Any , Optional
 import logging
 
 import pickle
@@ -49,7 +49,7 @@ import numpy as np
 import mlflow
 from sentence_transformers import SentenceTransformer
 
-# إعداد logging
+# Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
 class EmbeddingCache:
@@ -165,7 +165,7 @@ class Embedder:
         return embedded
 
 
-@step(enable_cache=False)
-def chunks_embedding(chunks) :
+@step(enable_cache=True )
+def chunks_embedding(chunks, x_optiona:Optional[bool] = False) :
     em = Embedder()
     return em.chunk_embeded(chunks)

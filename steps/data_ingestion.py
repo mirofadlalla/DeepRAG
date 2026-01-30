@@ -1,6 +1,6 @@
 from zenml import step
 import os 
-from typing import  List , Dict
+from typing import  List , Dict, Optional
 from pathlib import Path 
 import hashlib 
 import logging 
@@ -93,8 +93,8 @@ class DocumentLoader:
         return pages
     
 
-@step(enable_cache=False)
-def load(data_path : Path) -> List[Dict]:
+@step(enable_cache=True)
+def load(data_path : Path , x_optiona:Optional[bool] = False) -> List[Dict]:
         ''' a general method of extracting documents '''
         loader = DocumentLoader(data_path)
         docs = []

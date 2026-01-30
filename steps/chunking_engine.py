@@ -1,7 +1,7 @@
 import nltk
 import hashlib
 import re
-from typing import Dict, List, Any
+from typing import Dict, List, Any , Optional
 from transformers import AutoTokenizer
 from zenml import step
 import mlflow
@@ -11,12 +11,13 @@ class RecursiveChunker:
     def __init__(
         self,
         model_name: str = "BAAI/bge-m3",
-        max_tokens: int = 500,
-        overlap: int = 80,
-        min_chunk_size: int = 420,
+        max_tokens: int = 300,
+        overlap: int = 100,
+        min_chunk_size: int = 50,
         respect_sentence_boundaries: bool = True,
         respect_paragraph_boundaries: bool = True,
-        preserve_lists: bool = True
+        preserve_lists: bool = True , 
+        
     ):
         mlflow.log_param("model_name_used_in_chunking", model_name)
         mlflow.log_param("max_tokens", max_tokens)
@@ -229,8 +230,8 @@ class RecursiveChunker:
         return hashlib.sha256(base.encode("utf-8")).hexdigest()
 
 
-@step(enable_cache=False)
-def chunk_documents(docs: List[Dict[str,Any]]) -> List[Dict[str,Any]]:
+@step(enable_cache=True)
+def chunk_documents(docs: List[Dict[str,Any]] ,x_optiona:Optional[bool] = False) -> List[Dict[str,Any]]:
     """Chunk documents using RecursiveChunker."""
     chunker = RecursiveChunker()
     return chunker.chunk_text(docs)
