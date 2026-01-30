@@ -127,17 +127,15 @@ def rag_pipeline(
     end_total_time = time.time()
     mlflow.log_metric("total_pipeline_time_seconds", (end_total_time - start_total_time) * 1000)
 
-    # Convert answer to dict to avoid ZenML serialization issues with str type
-    answer_dict = {"answer": final_answer} if isinstance(final_answer, str) else final_answer
-    
     all_metrics = evaluate_pipeline(
         question=query,
         retrieved_chunks=reranked_results,
-        answer=answer_dict,
+        answer=final_answer,
         relevant_ids=relevant_ids,
         context_chunks=reranked_results,
         retriever=None,
         paraphrases=[]
     )
+    mlflow.log_metrics(all_metrics)
 
     return final_answer
