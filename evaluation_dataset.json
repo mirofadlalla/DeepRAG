@@ -1,0 +1,103 @@
+[
+
+  {
+    "id": "q_020",
+    "question": "What was the percentage change in Google Cloud revenues from 2022 to 2023?",
+    "relevant_ids": [
+      "a6dfcf1f09c6ce29b28d52062f9cbbf685209d3dcb31c0b7faab24a3a38e86b8"
+    ],
+    "paraphrases": [
+      "How much did Google Cloud revenues grow in 2023?",
+      "What was the growth rate for Google Cloud in 2023?"
+    ]
+  },
+  {
+    "id": "q_021",
+    "question": "What are Alphabet's AI Principles and when were they published?",
+    "relevant_ids": [
+      "d133803907c66343dcef1981ca7675d002e048831616e5f448a6ceb10a2dd9cb",
+      "81d52521e4ca30b39643179677355f57375cdbc317ccd3ce4023444466f7f757"
+    ],
+    "paraphrases": [
+      "When did Alphabet publish its AI Principles?",
+      "What year were Alphabet's AI Principles introduced?"
+    ]
+  },
+  {
+    "id": "q_022",
+    "question": "What was the capital expenditures amount for Alphabet in 2023?",
+    "relevant_ids": [
+      "1ea67ae097533af03c889298bb0cc463b80b856efc65de7103e928a07f64bc7e"
+    ],
+    "paraphrases": [
+      "How much did Alphabet spend on capital expenditures in 2023?",
+      "What was Alphabet's 2023 CapEx?"
+    ]
+  },
+  {
+    "id": "q_023",
+    "question": "What is the primary business activity of Google Network?",
+    "relevant_ids": [
+      "7123075342571722e0f75eaeafb59d9b0d26b93670379fdf63ff01e229e52012"
+    ],
+    "paraphrases": [
+      "What does Google Network do?",
+      "What services does Google Network provide?"
+    ]
+  },
+  {
+    "id": "q_024",
+    "question": "What was the percentage change in paid clicks on Google Search & other properties from 2022 to 2023?",
+    "relevant_ids": [
+      "487f59724a62ca6eb3a84dfb9d9de577c897224289878d747e5aa31298a660aa"
+    ],
+    "paraphrases": [
+      "How much did paid clicks grow on Google Search in 2023?",
+      "What was the paid clicks growth rate for Google Search?"
+    ]
+  },
+  {
+    "id": "q_027",
+    "question": "What are the two main types of advertising that Google Services generates revenues from?",
+    "relevant_ids": [
+      "56410531ac83388559bdd2cc145b6fe56c26ec84616d3fb73cc538275d4c2210"
+    ],
+    "paraphrases": [
+      "What advertising categories does Google Services use?",
+      "List the main types of ads Google Services offers."
+    ]
+  },
+  {
+    "id": "q_028",
+    "question": "What was the percentage change in Google Network impressions from 2022 to 2023?",
+    "relevant_ids": [
+      "487f59724a62ca6eb3a84dfb9d9de577c897224289878d747e5aa31298a660aa"
+    ],
+    "paraphrases": [
+      "How did Google Network impressions change in 2023?",
+      "What was the impressions trend for Google Network?"
+    ]
+  },
+  {
+    "id": "q_029",
+    "question": "What is the name of Google's AI platform for developers?",
+    "relevant_ids": [
+      "c67e7c0b8035cabf8a26c24d05ff0f6b9b936d6aa7bc9b3fb7385b394be80a84"
+    ],
+    "paraphrases": [
+      "What platform does Google offer for AI development?",
+      "What is Google's AI development platform called?"
+    ]
+  },
+  {
+    "id": "q_030",
+    "question": "What was the effective tax rate for Alphabet in 2023?",
+    "relevant_ids": [
+      "1ea67ae097533af03c889298bb0cc463b80b856efc65de7103e928a07f64bc7e"
+    ],
+    "paraphrases": [
+      "What percentage tax rate did Alphabet pay in 2023?",
+      "How much was Alphabet's effective tax rate in 2023?"
+    ]
+  }
+]
