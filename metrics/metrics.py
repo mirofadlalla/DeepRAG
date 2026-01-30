@@ -33,20 +33,20 @@ def mean_reciprocal_rank(retrieved: List[str], relevant: List[str], k: int = 10)
 def retrieval_metrics(retrieved: List[str], relevant: List[str], k_values: List[int] = [1,3,5,10]) -> Dict:
     metrics = {"mrr": mean_reciprocal_rank(retrieved, relevant)}
     for k in k_values:
-        metrics[f"recall_{k}"] = recall_at_k(retrieved, relevant, k)
-        metrics[f"precision_{k}"] = precision_at_k(retrieved, relevant, k)
+        metrics[f"recall@{k}"] = recall_at_k(retrieved, relevant, k)
+        metrics[f"precision@{k}"] = precision_at_k(retrieved, relevant, k)
     return metrics
 
 # ================= Answer Relevance =================
 def answer_relevance(question: str, answer: str) -> bool:
-    try:
-        client = InferenceClient(api_key=os.getenv("HUGGINGFACE_API_KEY"))
-        prompt = f"""
+    client = InferenceClient(api_key=os.getenv("HUGGINGFACE_API_KEY"))
+    prompt = f"""
     Question: {question}
     Answer: {answer}
     Is the answer relevant? Reply ONLY with Yes or No.
     """
-        res = client.chat.completions.create(
+    try:
+        res = client.text_generation(
             prompt=prompt,
             model=HF_MODEL,
             max_new_tokens=5,
@@ -55,15 +55,13 @@ def answer_relevance(question: str, answer: str) -> bool:
         return "yes" in res.lower()
     except Exception as e:
         logging.error(f"Answer relevance check failed: {e}")
-        # If model not supported, default to True to allow pipeline to continue
-        return True
+        return False
 
 # ================= Hallucination Detection =================
 def hallucination_rate(question: str, answer: str, context_chunks: List[Dict]) -> Dict:
-    try:
-        client = InferenceClient(api_key=os.getenv("HUGGINGFACE_API_KEY"))
-        context = "\n".join(c.get("text","") for c in context_chunks)
-        prompt = f"""
+    client = InferenceClient(api_key=os.getenv("HUGGINGFACE_API_KEY"))
+    context = "\n".join(c.get("text","") for c in context_chunks)
+    prompt = f"""
     Context:
     {context}
 
@@ -75,7 +73,8 @@ def hallucination_rate(question: str, answer: str, context_chunks: List[Dict]) -
 
     Rate hallucination from 0 to 10. Reply ONLY with a number.
     """
-        res = client.chat.completions.create(
+    try:
+        res = client.text_generation(
             prompt=prompt,
             model=HF_MODEL,
             max_new_tokens=5,
@@ -118,23 +117,20 @@ def rephrase_stability_test(retriever, question: str, paraphrases: List[str], k:
 def evaluate_pipeline(
     question: str,
     retrieved_chunks: List[Dict],
-    answer: Dict,
+    answer: str,
     relevant_ids: List[str],
     context_chunks: List[Dict],
     retriever=None,
     paraphrases: List[str] = []
 ) -> Dict:
 
-    # Extract answer text from dict if necessary
-    answer_text = answer.get("answer", "") if isinstance(answer, dict) else answer
-
     # Extract retrieved IDs
     retrieved_ids = [c["chunk_id"] for c in retrieved_chunks]
 
     # Compute metrics
     retrieval_met = retrieval_metrics(retrieved_ids, relevant_ids)
-    relevance = answer_relevance(question, answer_text)
-    hallucination_met = hallucination_rate(question, answer_text, context_chunks) if context_chunks else {}
+    relevance = answer_relevance(question, answer)
+    hallucination_met = hallucination_rate(question, answer, context_chunks) if context_chunks else {}
     stability_retrieval = retrieval_stability_test(retriever, question) if retriever else {}
     stability_rephrase = rephrase_stability_test(retriever, question, paraphrases) if retriever and paraphrases else {}
 
@@ -143,16 +139,17 @@ def evaluate_pipeline(
         "retrieved_ids": retrieved_ids,
         "relevant_ids": relevant_ids,
         "retrieval_metrics": retrieval_met,
-        "answer": answer_text,
+        "answer": answer,
         "answer_relevance": relevance,
         "hallucination": hallucination_met,
         "stability_retrieval": stability_retrieval,
         "stability_rephrase": stability_rephrase
     }
 
-    # Save in MLflow - use the existing active run from the pipeline
-    # No need to create a new run, just log metrics to the current run
-    try:
+    # Save in MLflow
+    mlflow.set_experiment("DeepRAG-Evaluation")
+    with mlflow.start_run(run_name=f"evaluation_{hash(question)}"):
+        # Log retrieval metrics
         mlflow.log_metrics(retrieval_met)
         mlflow.log_metric("answer_relevance", int(relevance))
         if hallucination_met:
@@ -161,8 +158,6 @@ def evaluate_pipeline(
             mlflow.log_metric("stability_avg_jaccard", stability_retrieval.get("avg_jaccard",0))
         if stability_rephrase:
             mlflow.log_metric("stability_rephrase_avg_jaccard", stability_rephrase)
-    except Exception as e:
-        logging.error(f"Failed to log metrics to MLflow: {e}")
 
     # Save all results to file
     os.makedirs("evaluation_results", exist_ok=True)
