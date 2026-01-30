@@ -95,7 +95,7 @@ class FaissIndex:
                 self.faiss_id = max(map(int, self.mapping.keys())) + 1
 
 
-@step(enable_cache=True)
+@step(enable_cache=False)
 def faiss_index_step(embeddings: List[Dict], vector_dim: int):
     faiss_index = FaissIndex(vector_dim)
     faiss_index.add(embeddings)

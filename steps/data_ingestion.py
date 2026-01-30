@@ -93,7 +93,7 @@ class DocumentLoader:
         return pages
     
 
-@step(enable_cache=True)
+@step(enable_cache=False)
 def load(data_path : Path) -> List[Dict]:
         ''' a general method of extracting documents '''
         loader = DocumentLoader(data_path)

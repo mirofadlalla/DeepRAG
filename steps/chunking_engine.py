@@ -229,7 +229,7 @@ class RecursiveChunker:
         return hashlib.sha256(base.encode("utf-8")).hexdigest()
 
 
-@step(enable_cache=True)
+@step(enable_cache=False)
 def chunk_documents(docs: List[Dict[str,Any]]) -> List[Dict[str,Any]]:
     """Chunk documents using RecursiveChunker."""
     chunker = RecursiveChunker()
