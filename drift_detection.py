@@ -15,9 +15,16 @@ from collections import deque
 # Baseline Management
 # ===============================
 
-def save_baseline_embeddings(embeddings: np.ndarray, baseline_dir: str = "baselines"):
+def save_baseline_embeddings(embeddings: np.ndarray, baseline_dir: str = "baselines") -> str:
     """
-    احفظ baseline embeddings للمقارنة مستقبلاً
+    Save baseline embeddings for future comparison
+    
+    Args:
+        embeddings: numpy array of embeddings
+        baseline_dir: folder to save baseline
+    
+    Returns:
+        Path to saved file
     """
     os.makedirs(baseline_dir, exist_ok=True)
     baseline_path = os.path.join(baseline_dir, "baseline_embeddings.npy")
@@ -28,7 +35,7 @@ def save_baseline_embeddings(embeddings: np.ndarray, baseline_dir: str = "baseli
 
 def load_baseline_embeddings(baseline_dir: str = "baselines") -> Optional[np.ndarray]:
     """
-    حمّل baseline embeddings
+    Load baseline embeddings
     """
     baseline_path = os.path.join(baseline_dir, "baseline_embeddings.npy")
     if os.path.exists(baseline_path):
@@ -48,14 +55,14 @@ def query_drift_score(
     live_embeddings: np.ndarray
 ) -> float:
     """
-    احسب درجة drift في embeddings الأسئلة
+    Calculate drift score in question embeddings
     
-    0.0  → لا يوجد drift
+    0.0  → no drift
     >0.3 → Severe drift
     
     Args:
-        baseline_embeddings: embeddings من baseline dataset
-        live_embeddings: embeddings من live/current questions
+        baseline_embeddings: embeddings from baseline dataset
+        live_embeddings: embeddings from live/current questions
         
     Returns:
         drift score (0-1)
@@ -76,7 +83,14 @@ def query_drift_score(
 
 def jaccard_similarity(a: List[str], b: List[str]) -> float:
     """
-    احسب Jaccard similarity بين قائمتين
+    Calculate Jaccard similarity between two lists
+    
+    Args:
+        a: first list of items
+        b: second list of items
+    
+    Returns:
+        Jaccard similarity score (0-1)
     """
     a, b = set(a), set(b)
     if not a and not b:
@@ -90,13 +104,13 @@ def retrieval_drift_test(
     top_k: int = 5
 ) -> float:
     """
-    قارن نتائج الـ retrieval بين عمليتين
-    (نفس السؤال - مقارنة النتائج)
+    Compare retrieval results between two runs
+    (same question - compare results)
     
     Args:
-        retrieved_results_run1: نتائج retrieval من عملية أولى
-        retrieved_results_run2: نتائج retrieval من عملية ثانية
-        top_k: عدد النتائج المأخوذة
+        retrieved_results_run1: retrieval results from first run
+        retrieved_results_run2: retrieval results from second run
+        top_k: number of results to take
         
     Returns:
         Jaccard similarity score
@@ -109,13 +123,16 @@ def retrieval_drift_test(
 
 def retrieval_stability_from_metrics(metrics_list: List[Dict]) -> Dict:
     """
-    احسب stability metrics من قائمة metrics محفوظة
+    Calculate stability metrics from saved metrics list
     
     Args:
-        metrics_list: قائمة من evaluation metrics من كل عملية
+        metrics_list: list of evaluation metrics from each run
         
     Returns:
-        stability metrics dict
+        stability metrics dict with average, min, max
+        
+    Example:
+        {"avg_stability": 0.95, "min_stability": 0.85, "max_stability": 1.0, "stability_std": 0.05}
     """
     if not metrics_list:
         return {}
@@ -145,12 +162,12 @@ def drift_decision(
     hallucination_score: float = 0.0
 ) -> str:
     """
-    اتخذ قرار بناءً على مقاييس الـ drift
+    Make decision based on drift metrics
     
     Args:
-        query_drift: درجة drift في الأسئلة (0-1)
-        retrieval_stability: Jaccard similarity للـ retrieval (0-1)
-        hallucination_score: درجة hallucination (0-1)
+        query_drift: drift score in questions (0-1)
+        retrieval_stability: Jaccard similarity for retrieval (0-1)
+        hallucination_score: hallucination score (0-1)
         
     Returns:
         "CRITICAL" | "WARNING" | "STABLE"
@@ -176,15 +193,20 @@ def detect_drift_from_benchmarks(
     model_name: str = "BAAI/bge-m3"
 ) -> Dict:
     """
-    كشف drift من خلال مقارنة benchmark metrics
+    Detect drift by comparing benchmark metrics
     
     Args:
-        current_metrics: metrics من التشغيل الحالي
-        baseline_metrics: baseline metrics (اختياري)
-        model_name: اسم نموذج embedding
+        current_metrics: metrics from current run
+        baseline_metrics: baseline metrics (optional)
+        model_name: embedding model name
         
     Returns:
-        drift detection results
+        Dict with keys:
+            - query_drift (float): shift score in questions
+            - retrieval_stability (float): retrieval results stability
+            - avg_hallucination (float): average hallucination
+            - drift_status (str): "STABLE" or "WARNING" or "CRITICAL"
+            - recommendations (List[str]): improvement instructions
     """
     results = {
         "query_drift": 0.0,
@@ -197,6 +219,19 @@ def detect_drift_from_benchmarks(
     if not current_metrics:
         return results
     
+    # all_metrics = { all metric values
+    #     "question": question,
+    #     "retrieved_ids": retrieved_ids,
+    #     "relevant_ids": relevant_ids,
+    #     "retrieval_metrics": retrieval_met,
+    #     "answer": answer_text,
+    #     "answer_relevance": relevance,
+    #     "hallucination": hallucination_met,
+    #     "stability_retrieval": stability_retrieval,
+    #     "stability_rephrase": stability_rephrase,
+    #     "retriever_type": retriever  # Log which retriever was used
+    # }
+
     # Calculate average retrieval stability
     stability_scores = [
         m.get("stability_retrieval", {}).get("avg_jaccard", 1.0)
@@ -232,20 +267,20 @@ def detect_drift_from_benchmarks(
     # Recommendations
     if results["drift_status"] == "CRITICAL":
         results["recommendations"] = [
-            "🚨 تحديث baseline embeddings مطلوب",
-            "🔧 قد تحتاج لإعادة تدريب نموذج embedding",
-            "⚙️ تحقق من جودة المستندات الجديدة"
+            "🚨 Baseline embeddings update required",
+            "🔧 May need to retrain embedding model",
+            "⚙️ Check quality of new documents"
         ]
     elif results["drift_status"] == "WARNING":
         results["recommendations"] = [
-            "⚠️ مراقبة الـ drift عن كثب",
-            "📊 قارن مع baseline قديم",
-            "🔄 قد تحتاج لإعادة indexing"
+            "⚠️ Monitor drift closely",
+            "📊 Compare with old baseline",
+            "🔄 May need re-indexing"
         ]
     else:
         results["recommendations"] = [
-            "✅ النظام مستقر",
-            "📈 المقاييس ضمن المتوقع"
+            "✅ System is stable",
+            "📈 Metrics within expected range"
         ]
     
     return results
@@ -255,9 +290,16 @@ def detect_drift_from_benchmarks(
 # Logging
 # ===============================
 
-def log_drift_to_mlflow(drift_results: Dict, run_name: str = "drift_detection"):
+def log_drift_to_mlflow(drift_results: Dict, run_name: str = "drift_detection") -> bool:
     """
-    سجل نتائج drift في MLflow
+    Log drift results to MLflow
+    
+    Args:
+        drift_results: drift detection results
+        run_name: run name in MLflow
+    
+    Returns:
+        True if logging succeeded, False otherwise
     """
     try:
         with mlflow.start_run(run_name=run_name):
@@ -270,8 +312,10 @@ def log_drift_to_mlflow(drift_results: Dict, run_name: str = "drift_detection"):
                 mlflow.log_param(f"recommendation_{idx+1}", rec)
             
             print(f"✅ Drift detection results logged to MLflow")
+            return True
     except Exception as e:
         print(f"❌ Failed to log drift results: {e}")
+        return False
 
 
 # ===============================
@@ -280,10 +324,10 @@ def log_drift_to_mlflow(drift_results: Dict, run_name: str = "drift_detection"):
 
 class DriftDetectionMonitor:
     """
-    مراقب drift دوري
-    - كل N سؤال (batch monitoring)
-    - يومياً (scheduled monitoring)
-    - تنبيهات فورية عند كشف drift
+    Periodic drift monitor
+    - Every N questions (batch monitoring)
+    - Daily (scheduled monitoring)
+    - Instant alerts when drift is detected
     """
     
     def __init__(
@@ -296,11 +340,11 @@ class DriftDetectionMonitor:
     ):
         """
         Args:
-            batch_size: عدد الأسئلة قبل كل فحص
-            check_daily: تفعيل الفحص اليومي
-            daily_check_hour: الساعة المراد الفحص فيها
-            alert_threshold: مستوى التنبيه (WARNING أو CRITICAL)
-            metrics_dir: مجلد حفظ المقاييس
+            batch_size: number of questions before each check
+            check_daily: enable daily check
+            daily_check_hour: hour for daily check
+            alert_threshold: alert level (WARNING or CRITICAL)
+            metrics_dir: folder to save metrics
         """
         self.batch_size = batch_size
         self.check_daily = check_daily
@@ -327,7 +371,7 @@ class DriftDetectionMonitor:
     
     
     def _load_history(self):
-        """حمّل سجل الـ drift السابق"""
+        """Load previous drift history"""
         if os.path.exists(self.monitor_log_file):
             try:
                 with open(self.monitor_log_file, "r", encoding="utf-8") as f:
@@ -340,7 +384,7 @@ class DriftDetectionMonitor:
     
     
     def _save_history(self):
-        """احفظ سجل الـ drift"""
+        """Save drift history"""
         try:
             data = {
                 "drift_history": self.drift_history,
@@ -355,10 +399,10 @@ class DriftDetectionMonitor:
     
     def add_metrics(self, metric: Dict) -> bool:
         """
-        أضف metric جديد وتحقق من الحاجة للفحص
+        Add new metric and check if checking is needed
         
         Returns:
-            True إذا تم الفحص
+            True if check was performed
         """
         self.metrics_buffer.append(metric)
         self.question_counter += 1
@@ -377,7 +421,7 @@ class DriftDetectionMonitor:
     
     
     def _should_run_daily_check(self) -> bool:
-        """تحقق من الحاجة للفحص اليومي"""
+        """Check if daily check is needed"""
         now = datetime.now()
         next_check_time = self.last_check_time.replace(
             hour=self.daily_check_hour,
@@ -392,12 +436,15 @@ class DriftDetectionMonitor:
         return now >= next_check_time
     
     
-    def generate_drift_report_run_drift_check(self, check_type: str) -> bool:
+    def _run_drift_check(self, check_type: str) -> bool:
         """
-        شغّل فحص drift
+        Run drift check
+        
+        Args:
+            check_type: type of check (batch/daily/scheduled)
         
         Returns:
-            True إذا تم كشف drift
+            True if drift was detected, False otherwise
         """
         if len(self.metrics_buffer) == 0:
             print("⚠️ No metrics to check")
@@ -444,7 +491,7 @@ class DriftDetectionMonitor:
     
     
     def _create_alert(self, drift_results: Dict, check_type: str) -> Dict:
-        """أنشئ تنبيه"""
+        """Create alert"""
         return {
             "timestamp": datetime.now().isoformat(),
             "check_type": check_type,
@@ -459,7 +506,7 @@ class DriftDetectionMonitor:
     
     
     def _send_alert(self, alert: Dict):
-        """أرسل تنبيه"""
+        """Send alert"""
         status = alert.get("drift_status")
         print(f"\n{'='*60}")
         print(f"🚨 DRIFT ALERT - {status}")
@@ -476,7 +523,7 @@ class DriftDetectionMonitor:
     
     
     def get_summary(self) -> Dict:
-        """احصل على ملخص الحالة الحالية"""
+        """Get current status summary"""
         if not self.drift_history:
             return {
                 "total_checks": 0,
@@ -510,7 +557,7 @@ class DriftDetectionMonitor:
     
     
     def get_alerts_since(self, hours_ago: int = 24) -> List[Dict]:
-        """احصل على التنبيهات من آخر N ساعة"""
+        """Get alerts from last N hours"""
         cutoff_time = datetime.now() - timedelta(hours=hours_ago)
         cutoff_iso = cutoff_time.isoformat()
         
@@ -536,7 +583,7 @@ except ImportError:
 
 class DriftScheduler:
     """
-    مجدول drift detection دوري
+    Periodic drift detection scheduler
     """
     
     def __init__(self):
@@ -555,12 +602,12 @@ class DriftScheduler:
         interval_minutes: int = 60
     ):
         """
-        اعدادات المجدول
+        Scheduler settings
         
         Args:
             monitor: DriftDetectionMonitor instance
-            daily_check_hour: الساعة للفحص اليومي
-            interval_minutes: الفحص المتكرر كل N دقيقة
+            daily_check_hour: hour for daily check
+            interval_minutes: periodic check every N minutes
         """
         self.monitor = monitor
         
@@ -587,7 +634,7 @@ class DriftScheduler:
     
     
     def _daily_check_job(self):
-        """وظيفة الفحص اليومي"""
+        """Daily check function"""
         print("\n📅 Running scheduled daily drift check...")
         if self.monitor:
             metrics = list(self.monitor.metrics_buffer)
@@ -596,7 +643,7 @@ class DriftScheduler:
     
     
     def _periodic_check_job(self):
-        """وظيفة الفحص الدوري"""
+        """Periodic check function"""
         print("\n⏰ Running periodic drift check...")
         if self.monitor:
             metrics = list(self.monitor.metrics_buffer)
@@ -605,14 +652,14 @@ class DriftScheduler:
     
     
     def start(self):
-        """ابدأ المجدول"""
+        """Start the scheduler"""
         if not self.scheduler.running:
             self.scheduler.start()
             print("✅ Drift scheduler started")
     
     
     def stop(self):
-        """أوقف المجدول"""
+        """Stop the scheduler"""
         if self.scheduler.running:
             self.scheduler.shutdown()
             print("✅ Drift scheduler stopped")
@@ -624,7 +671,7 @@ class DriftScheduler:
 
 def generate_drift_report(monitor: DriftDetectionMonitor, output_file: str = None) -> str:
     """
-    أنشئ تقرير drift شامل
+    Generate comprehensive drift report
     """
     summary = monitor.get_summary()
     recent_alerts = monitor.get_alerts_since(hours_ago=24)
@@ -678,5 +725,3 @@ Avg Hallucination: {summary.get('current_metrics', {}).get('avg_hallucination', 
         print(f"✅ Report saved: {output_file}")
     
     return report
-
-

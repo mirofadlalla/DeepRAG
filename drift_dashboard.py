@@ -10,13 +10,16 @@ from typing import Optional
 from drift_detection import DriftDetectionMonitor
 
 
-def display_dashboard(monitor: DriftDetectionMonitor, refresh_interval: int = 60):
+def display_dashboard(monitor: DriftDetectionMonitor, refresh_interval: int = 60) -> None:
     """
     Display live dashboard for drift detection
     
     Args:
         monitor: DriftDetectionMonitor instance
-        refresh_interval: Refresh every N seconds
+        refresh_interval: Refresh every N seconds (default: 60)
+    
+    Returns:
+        None. Runs indefinitely until user presses Ctrl+C
     """
     try:
         import time
@@ -98,6 +101,13 @@ def export_dashboard_to_html(
 ) -> str:
     """
     صدّر dashboard كـ HTML
+    
+    Args:
+        monitor: DriftDetectionMonitor instance
+        output_file: مسار حفظ ملف HTML
+    
+    Returns:
+        محتوى HTML كـ string
     """
     summary = monitor.get_summary()
     recent_alerts = monitor.get_alerts_since(hours_ago=24)
